@@ -96,7 +96,7 @@ export default function Checkout() {
       try {
         // Check if there is any transaction for the reference
         const signatureInfo = await findTransactionSignature(connection, reference)
-        console.log('They paid!!!')
+        router.push('/confirmed')
       } catch (e) {
         if (e instanceof FindTransactionSignatureError) {
           // No transaction found yet, ignore this error

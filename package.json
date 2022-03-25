@@ -16,6 +16,7 @@
     "bignumber.js": "^9.0.2",
     "next": "latest",
     "react": "^17.0.2",
+    "react-circular-progressbar": "^2.0.4",
     "react-dom": "^17.0.2"
   },
   "devDependencies": {

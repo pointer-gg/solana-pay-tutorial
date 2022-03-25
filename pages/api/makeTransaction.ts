@@ -1,7 +1,8 @@
+import { createTransferCheckedInstruction, getAssociatedTokenAddress, getMint } from "@solana/spl-token"
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base"
-import { clusterApiUrl, Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js"
+import { clusterApiUrl, Connection, PublicKey, Transaction } from "@solana/web3.js"
 import { NextApiRequest, NextApiResponse } from "next"
-import { shopAddress } from "../../lib/addresses"
+import { shopAddress, usdcAddress } from "../../lib/addresses"
 import calculatePrice from "../../lib/calculatePrice"
 
 export type MakeTransactionInputData = {
@@ -49,6 +50,13 @@ export default async function handler(
     const endpoint = clusterApiUrl(network)
     const connection = new Connection(endpoint)
 
+    // Get details about the USDC token
+    const usdcMint = await getMint(connection, usdcAddress)
+    // Get the buyer's USDC token account address
+    const buyerUsdcAddress = await getAssociatedTokenAddress(usdcAddress, buyerPublicKey)
+    // Get the shop's USDC token account address
+    const shopUsdcAddress = await getAssociatedTokenAddress(usdcAddress, shopPublicKey)
+
     // Get a recent blockhash to include in the transaction
     const { blockhash } = await (connection.getLatestBlockhash('finalized'))
 
@@ -58,12 +66,15 @@ export default async function handler(
       feePayer: buyerPublicKey,
     })
 
-    // Create the instruction to send SOL from the buyer to the shop
-    const transferInstruction = SystemProgram.transfer({
-      fromPubkey: buyerPublicKey,
-      lamports: amount.multipliedBy(LAMPORTS_PER_SOL).toNumber(),
-      toPubkey: shopPublicKey,
-    })
+    // Create the instruction to send USDC from the buyer to the shop
+    const transferInstruction = createTransferCheckedInstruction(
+      buyerUsdcAddress, // source
+      usdcAddress, // mint (token address)
+      shopUsdcAddress, // destination
+      buyerPublicKey, // owner of source address
+      amount.toNumber() * (10 ** (await usdcMint).decimals), // amount to transfer (in units of the USDC token)
+      usdcMint.decimals, // decimals of the USDC token
+    )
 
     // Add the reference to the instruction as a key
     // This will mean this transaction is returned when we query for the reference

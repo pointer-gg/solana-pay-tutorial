@@ -21,7 +21,7 @@ export default function HomePage() {
       {publicKey && <CouponBook />}
 
       {/* We disable checking out without a connected wallet */}
-      {/* Also the submitTarget is /buy/transaction instead of /checkout */}
+      {/* Also the submitTarget is /checkout instead of /checkout */}
       <Products submitTarget='/checkout' enabled={publicKey !== null} />
     </div>
   )

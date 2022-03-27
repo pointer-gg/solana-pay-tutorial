@@ -113,7 +113,7 @@ export default function Checkout() {
   if (!publicKey) {
     return (
       <div className='flex flex-col gap-8 items-center'>
-        <div><BackLink href='/buy'>Cancel</BackLink></div>
+        <div><BackLink href='/'>Cancel</BackLink></div>
 
         <WalletMultiButton />
 
@@ -124,7 +124,7 @@ export default function Checkout() {
 
   return (
     <div className='flex flex-col gap-8 items-center'>
-      <div><BackLink href='/buy'>Cancel</BackLink></div>
+      <div><BackLink href='/'>Cancel</BackLink></div>
 
       <WalletMultiButton />
 

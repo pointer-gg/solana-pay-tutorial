@@ -1,5 +1,5 @@
 import '../styles/globals.css'
-import type { AppProps } from 'next/app'
+import { AppContext, AppProps, default as NextApp } from 'next/app'
 import Layout from '../components/Layout'
 import Head from 'next/head'
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
@@ -7,11 +7,16 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import { clusterApiUrl } from '@solana/web3.js'
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets'
+import { ConfigProvider } from '../contexts/ConfigProvider'
 
 // Default styles that can be overridden by your app
 require('@solana/wallet-adapter-react-ui/styles.css');
 
-function MyApp({ Component, pageProps }: AppProps) {
+interface MyAppProps extends AppProps {
+  host: string;
+}
+
+function MyApp({ Component, pageProps, host }: MyAppProps) {
   // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
   const network = WalletAdapterNetwork.Devnet;
 
@@ -26,6 +31,8 @@ function MyApp({ Component, pageProps }: AppProps) {
     new SolflareWalletAdapter({ network }),
   ];
 
+  const baseUrl = `https://${host}`;
+
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
@@ -34,12 +41,25 @@ function MyApp({ Component, pageProps }: AppProps) {
             <Head>
               <title>Cookies Inc</title>
             </Head>
-            <Component {...pageProps} />
+            <ConfigProvider baseUrl={baseUrl}>
+              <Component {...pageProps} />
+            </ConfigProvider>
           </Layout>
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   )
 }
+
+MyApp.getInitialProps = async (appContext: AppContext) => {
+  const props = await NextApp.getInitialProps(appContext)
+  const { req } = appContext.ctx;
+  const host = req?.headers.host || 'localhost:3001';
+
+  return {
+    ...props,
+    host,
+  };
+};
 
 export default MyApp

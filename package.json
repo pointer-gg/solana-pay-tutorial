@@ -3,7 +3,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "proxy": "local-ssl-proxy --source 3002 --target 3000"
   },
   "dependencies": {
     "@solana/pay": "^0.1.3",

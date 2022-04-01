@@ -39,6 +39,7 @@ async function post(
     // We pass the selected items in the query, calculate the expected cost
     const amount = calculatePrice(req.query)
     if (amount.toNumber() === 0) {
+      console.log('Returning 400: amount = 0')
       res.status(400).json({ error: "Can't checkout with charge of 0" })
       return
     }
@@ -46,6 +47,7 @@ async function post(
     // We pass the reference to use in the query
     const { reference } = req.query
     if (!reference) {
+      console.log('Returning 400: no reference')
       res.status(400).json({ error: "No reference provided" })
       return
     }
@@ -53,13 +55,15 @@ async function post(
     // We pass the buyer's public key in JSON body
     const { account } = req.body as MakeTransactionInputData
     if (!account) {
-      res.status(40).json({ error: "No account provided" })
+      console.log('Returning 400: no account')
+      res.status(400).json({ error: "No account provided" })
       return
     }
 
     // We get the shop private key from .env - this is the same as in our script
     const shopPrivateKey = process.env.SHOP_PRIVATE_KEY as string
     if (!shopPrivateKey) {
+      console.log('Returning 500: shop private key not available')
       res.status(500).json({ error: "Shop private key not available" })
     }
     const shopKeypair = Keypair.fromSecretKey(base58.decode(shopPrivateKey))
@@ -165,20 +169,29 @@ async function post(
       // We will need the buyer to sign this transaction after it's returned to them
       requireAllSignatures: false
     })
-    const base64 = serializedTransaction.toString('base64')
+
+    const tx2 = Transaction.from(serializedTransaction)
+
+    const serializedTx2 = transaction.serialize({
+      requireAllSignatures: false
+    })
+
+    const base64 = serializedTx2.toString('base64')
 
     // Insert into database: reference, amount
 
     const message = buyerGetsCouponDiscount ? "50% Discount! 🍪" : "Thanks for your order! 🍪"
 
     // Return the serialized transaction
-    res.status(200).json({
+    const responseBody = {
       transaction: base64,
       message,
-    })
+    }
+
+    console.log('returning 200', responseBody)
+    res.status(200).json(responseBody)
   } catch (err) {
     console.error(err);
-
     res.status(500).json({ error: 'error creating transaction', })
     return
   }

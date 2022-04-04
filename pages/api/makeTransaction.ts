@@ -158,11 +158,11 @@ async function post(
     })
 
     // Add both instructions to the transaction
-    transaction.add(transferInstruction, couponInstruction)
+    transaction.add(transferInstruction)
 
     // Sign the transaction as the shop, which is required to transfer the coupon
     // We must partial sign because the transfer instruction still requires the user
-    transaction.partialSign(shopKeypair)
+    // transaction.partialSign(shopKeypair)
 
     // Serialize the transaction and convert to base64 to return it
     const serializedTransaction = transaction.serialize({

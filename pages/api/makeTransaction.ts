@@ -101,8 +101,8 @@ async function post(
 
     const transaction = new Transaction({
       recentBlockhash: blockhash,
-      // The buyer pays the transaction fee
-      feePayer: buyerPublicKey,
+      // The shop pays the transaction fee
+      feePayer: shopPublicKey,
     })
 
     // If the buyer has the coupon discount, divide the amount in USDC by 2

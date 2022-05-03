@@ -16,11 +16,11 @@ export default function Products({ submitTarget, enabled }: Props) {
         <div className="grid grid-cols-2 gap-8">
           {products.map(product => {
             return (
-              <div className="rounded-md bg-white text-left p-8" key={product.id}>
+              <div className="p-8 text-left bg-white rounded-md" key={product.id}>
                 <h3 className="text-2xl font-bold">{product.name}</h3>
                 <p className="text-sm text-gray-800">{product.description}</p>
                 <p className="my-4">
-                  <span className="mt-4 text-xl font-bold">{product.priceSol} SOL</span>
+                  <span className="mt-4 text-xl font-bold">${product.priceUsd}</span>
                   {product.unitName && <span className="text-sm text-gray-800"> /{product.unitName}</span>}
                 </p>
                 <div className="mt-1">
@@ -33,7 +33,7 @@ export default function Products({ submitTarget, enabled }: Props) {
         </div>
 
         <button
-          className="items-center px-20 rounded-md py-2 max-w-fit self-center bg-gray-900 text-white hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="items-center self-center px-20 py-2 text-white bg-gray-900 rounded-md max-w-fit hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!enabled}
         >
           Checkout

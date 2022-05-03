@@ -4,7 +4,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "proxy": "local-ssl-proxy --source 3001 --target 3000",
+    "my-ip": "node -e \"var ip = require('ip'); console.log(ip.address())\""
   },
   "dependencies": {
     "@solana/pay": "^0.2.0",
@@ -25,6 +27,8 @@
     "@types/node": "17.0.4",
     "@types/react": "17.0.38",
     "autoprefixer": "^10.4.0",
+    "ip": "^1.1.5",
+    "local-ssl-proxy": "^1.2.3",
     "postcss": "^8.4.5",
     "prettier": "^2.5.1",
     "prettier-plugin-tailwindcss": "^0.1.1",

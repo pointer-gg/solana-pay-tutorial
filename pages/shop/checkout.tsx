@@ -1,4 +1,4 @@
-import { createQR, encodeURL, TransferRequestURLFields, findReference, validateTransfer, FindReferenceError, ValidateTransferError } from "@solana/pay";
+import { createQR, encodeURL, TransferRequestURLFields, findReference, validateTransfer, FindReferenceError, ValidateTransferError, TransactionRequestURLFields } from "@solana/pay";
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { clusterApiUrl, Connection, Keypair } from "@solana/web3.js";
 import { useRouter } from "next/router";
@@ -16,14 +16,30 @@ export default function Checkout() {
 
   const amount = useMemo(() => calculatePrice(router.query), [router.query])
 
-  // Unique address that we can listen for payments to
-  const reference = useMemo(() => Keypair.generate().publicKey, [])
+  // Read the URL query (which includes our chosen products)
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(router.query)) {
+    if (value) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          searchParams.append(key, v);
+        }
+      } else {
+        searchParams.append(key, value);
+      }
+    }
+  }
+
+  // Generate the unique reference which will be used for this transaction
+  const reference = useMemo(() => Keypair.generate().publicKey, []);
+
+  // Add it to the params we'll pass to the API
+  searchParams.append('reference', reference.toString());
 
   // Get a connection to Solana devnet
   const network = WalletAdapterNetwork.Devnet
   const endpoint = clusterApiUrl(network)
   const connection = new Connection(endpoint)
-
 
   // Solana Pay transfer params
   const urlParams: TransferRequestURLFields = {
@@ -35,13 +51,18 @@ export default function Checkout() {
     message: "Thanks for your order! 🍪",
   }
 
-  // Encode the params into the format shown
-  const url = encodeURL(urlParams)
-  console.log({ url })
-
   // Show the QR code
   useEffect(() => {
-    const qr = createQR(url, 512, 'transparent')
+    // window.location is only available in the browser, so create the URL in here
+    const { location } = window
+    const apiUrl = `${location.protocol}//${location.host}/api/makeTransaction?${searchParams.toString()}`
+    const urlParams: TransactionRequestURLFields = {
+      link: new URL(apiUrl),
+      label: "Cookies Inc",
+      message: "Thanks for your order! 🍪",
+    }
+    const solanaUrl = encodeURL(urlParams)
+    const qr = createQR(solanaUrl, 512, 'transparent')
     if (qrRef.current && amount.isGreaterThan(0)) {
       qrRef.current.innerHTML = ''
       qr.append(qrRef.current)

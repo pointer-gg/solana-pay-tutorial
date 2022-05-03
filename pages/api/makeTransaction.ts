@@ -9,6 +9,11 @@ export type MakeTransactionInputData = {
   account: string,
 }
 
+type MakeTransactionGetResponse = {
+  label: string,
+  icon: string,
+}
+
 export type MakeTransactionOutputData = {
   transaction: string,
   message: string,
@@ -18,7 +23,14 @@ type ErrorOutput = {
   error: string
 }
 
-export default async function handler(
+function get(res: NextApiResponse<MakeTransactionGetResponse>) {
+  res.status(200).json({
+    label: "Cookies Inc",
+    icon: "https://freesvg.org/img/1370962427.png",
+  })
+}
+
+async function post(
   req: NextApiRequest,
   res: NextApiResponse<MakeTransactionOutputData | ErrorOutput>
 ) {
@@ -40,7 +52,7 @@ export default async function handler(
     // We pass the buyer's public key in JSON body
     const { account } = req.body as MakeTransactionInputData
     if (!account) {
-      res.status(400).json({ error: "No account provided" })
+      res.status(40).json({ error: "No account provided" })
       return
     }
     const buyerPublicKey = new PublicKey(account)
@@ -72,7 +84,7 @@ export default async function handler(
       usdcAddress, // mint (token address)
       shopUsdcAddress, // destination
       buyerPublicKey, // owner of source address
-      amount.toNumber() * (10 ** (await usdcMint).decimals), // amount to transfer (in units of the USDC token)
+      amount.toNumber() * (10 ** usdcMint.decimals), // amount to transfer (in units of the USDC token)
       usdcMint.decimals, // decimals of the USDC token
     )
 
@@ -106,5 +118,18 @@ export default async function handler(
 
     res.status(500).json({ error: 'error creating transaction', })
     return
+  }
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<MakeTransactionGetResponse | MakeTransactionOutputData | ErrorOutput>
+) {
+  if (req.method === "GET") {
+    return get(res)
+  } else if (req.method === "POST") {
+    return await post(req, res)
+  } else {
+    return res.status(405).json({ error: "Method not allowed" })
   }
 }

@@ -9,6 +9,7 @@
     "my-ip": "node -e \"var ip = require('ip'); console.log(ip.address())\""
   },
   "dependencies": {
+    "@metaplex-foundation/mpl-candy-machine": "^4.2.0",
     "@solana/pay": "^0.2.0",
     "@solana/spl-token": "^0.2.0",
     "@solana/wallet-adapter-base": "^0.9.5",

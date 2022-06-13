@@ -1,10 +1,27 @@
-import { createTransferCheckedInstruction, getAssociatedTokenAddress, getMint, getOrCreateAssociatedTokenAccount } from "@solana/spl-token"
+import { createAssociatedTokenAccountInstruction, createInitializeMintInstruction, createMintToInstruction, createTransferCheckedInstruction, getAssociatedTokenAddress, getMint, MintLayout, TOKEN_PROGRAM_ID } from "@solana/spl-token"
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base"
-import { clusterApiUrl, Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js"
+import { clusterApiUrl, Connection, Keypair, PublicKey, SystemProgram, SYSVAR_CLOCK_PUBKEY, SYSVAR_INSTRUCTIONS_PUBKEY, SYSVAR_SLOT_HASHES_PUBKEY, Transaction, TransactionInstruction } from "@solana/web3.js"
 import { NextApiRequest, NextApiResponse } from "next"
-import { couponAddress, shopAddress, usdcAddress } from "../../lib/addresses"
+import { usdcAddress } from "../../lib/addresses"
 import calculatePrice from "../../lib/calculatePrice"
-import base58 from 'bs58'
+import { MintNftInstructionAccounts, MintNftInstructionArgs, createMintNftInstruction } from "@metaplex-foundation/mpl-candy-machine"
+import base58 from "bs58"
+// Constantsgst
+// metaplex token metadata program address
+const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+
+// associated token account program address
+const SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
+
+// candy machine program address
+const CANDY_MACHINE_PROGRAM_ID = new PublicKey('cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ')
+
+// You need to update the next 2 to your candy machine
+// my candy machine address
+const MY_CANDY_MACHINE_ID = new PublicKey("F8Kxjnp3dXyBamR4DKXSGvnzdz4PckJrQxWSingWfdQg")
+
+// my wallet address used to create the candy machine
+const CANDY_MACHINE_OWNER = new PublicKey("9AUvdLggr4DezH1FEHFBVqQPNUF9q6sZGTYoPMyum2sk")
 
 export type MakeTransactionInputData = {
   account: string,
@@ -29,6 +46,138 @@ function get(res: NextApiResponse<MakeTransactionGetResponse>) {
     label: "Cookies Inc",
     icon: "https://freesvg.org/img/1370962427.png",
   })
+}
+
+// Copied from candy-machine-ui: https://github.dev/metaplex-foundation/metaplex/blob/e20c14069be57ffa09428dd25a07a5bcf7ef51c4/js/packages/candy-machine-ui/src/candy-machine.ts#L222
+const getMetadata = async (mint: PublicKey): Promise<PublicKey> => {
+  return (
+    await PublicKey.findProgramAddress(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID,
+    )
+  )[0];
+};
+
+// Copied from candy-machine-ui: https://github.dev/metaplex-foundation/metaplex/blob/e20c14069be57ffa09428dd25a07a5bcf7ef51c4/js/packages/candy-machine-ui/src/candy-machine.ts#L206
+const getMasterEdition = async (
+  mint: PublicKey,
+): Promise<PublicKey> => {
+  return (
+    await PublicKey.findProgramAddress(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.toBuffer(),
+        Buffer.from('edition'),
+      ],
+      TOKEN_METADATA_PROGRAM_ID,
+    )
+  )[0];
+};
+
+// Copied from candy-machine-ui: https://github.dev/metaplex-foundation/metaplex/blob/631983372cfbdfa99a45c26141f8756cd77efc99/js/packages/candy-machine-ui/src/utils.ts#L55-L63
+const getAtaForMint = async (payer: PublicKey, mint: PublicKey,): Promise<[PublicKey, number]> => {
+  return await PublicKey.findProgramAddress(
+    [payer.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
+  );
+};
+
+// Copied from candy-machine-ui: https://github.dev/metaplex-foundation/metaplex/blob/e20c14069be57ffa09428dd25a07a5bcf7ef51c4/js/packages/candy-machine-ui/src/candy-machine.ts#L237-L238
+const getCandyMachineCreator = async (candyMachine: PublicKey): Promise<[PublicKey, number]> => {
+  return await PublicKey.findProgramAddress(
+    [Buffer.from('candy_machine'), candyMachine.toBuffer()],
+    CANDY_MACHINE_PROGRAM_ID,
+  );
+};
+
+const createSetupInstructions = async (
+  connection: Connection,
+  payer: PublicKey,
+  mintFor: PublicKey,
+  mint: PublicKey
+): Promise<TransactionInstruction[]> => {
+  const minimumBalance = await connection.getMinimumBalanceForRentExemption(MintLayout.span)
+  const userTokenAccountAddress = (await getAtaForMint(mintFor, mint))[0];
+
+  return [
+    SystemProgram.createAccount({
+      fromPubkey: payer,
+      newAccountPubkey: mint,
+      space: MintLayout.span,
+      lamports: minimumBalance,
+      programId: TOKEN_PROGRAM_ID,
+    }),
+    createInitializeMintInstruction(
+      mint,
+      0, // decimals
+      mintFor, // mint authority
+      mintFor, // freeze authority
+    ),
+    createAssociatedTokenAccountInstruction(
+      payer, // payer
+      userTokenAccountAddress, // user token address
+      mintFor, // owner
+      mint, // mint
+    ),
+    createMintToInstruction(
+      mint, // mint
+      userTokenAccountAddress, // destination
+      mintFor, // authority
+      1, // amount
+    ),
+  ]
+}
+
+const createMetaplexMintInstruction = async (
+  payer: PublicKey,
+  mintFor: PublicKey,
+  mint: PublicKey
+): Promise<TransactionInstruction> => {
+  const metadata = await getMetadata(mint)
+  const masterEdition = await getMasterEdition(mint)
+
+  const [candyMachineCreator, creatorBump] = await getCandyMachineCreator(
+    MY_CANDY_MACHINE_ID,
+  );
+
+  const accounts: MintNftInstructionAccounts = {
+    // from metaplex CLI
+    candyMachine: MY_CANDY_MACHINE_ID,
+    // from getCandyMachineCreator
+    candyMachineCreator: candyMachineCreator,
+    // who is paying for the NFT to be minted
+    payer: payer,
+    // treasury, I just set this to myself (this is set in metaplex CLI)
+    wallet: CANDY_MACHINE_OWNER,
+    // metadata public key, from getMetadata call
+    metadata,
+    // mint public key, generated
+    mint: mint,
+    // mint + update authorities are who we're minting for
+    mintAuthority: mintFor,
+    updateAuthority: mintFor,
+    // master edition public key, from getMasterEdition call
+    masterEdition,
+    // token metadata program is hardcoded
+    tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+    // clock, from web3.js
+    clock: SYSVAR_CLOCK_PUBKEY,
+    // copied from candy-machine-ui, which uses this
+    recentBlockhashes: SYSVAR_SLOT_HASHES_PUBKEY,
+    // also just copied candy-machine-ui
+    instructionSysvarAccount: SYSVAR_INSTRUCTIONS_PUBKEY,
+  }
+
+  const args: MintNftInstructionArgs = {
+    creatorBump
+  }
+
+  return createMintNftInstruction(accounts, args)
 }
 
 async function post(
@@ -64,6 +213,7 @@ async function post(
     }
     const shopKeypair = Keypair.fromSecretKey(base58.decode(shopPrivateKey))
 
+
     const buyerPublicKey = new PublicKey(account)
     const shopPublicKey = shopKeypair.publicKey
 
@@ -71,26 +221,13 @@ async function post(
     const endpoint = clusterApiUrl(network)
     const connection = new Connection(endpoint)
 
-    // Get the buyer and seller coupon token accounts
-    // Buyer one may not exist, so we create it (which costs SOL) as the shop account if it doesn't 
-    const buyerCouponAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      shopKeypair, // shop pays the fee to create it
-      couponAddress, // which token the account is for
-      buyerPublicKey, // who the token account belongs to (the buyer)
-    )
-
-    const shopCouponAddress = await getAssociatedTokenAddress(couponAddress, shopPublicKey)
-
-    // If the buyer has at least 5 coupons, they can use them and get a discount
-    const buyerGetsCouponDiscount = buyerCouponAccount.amount >= 5
 
     // Get details about the USDC token
     const usdcMint = await getMint(connection, usdcAddress)
     // Get the buyer's USDC token account address
     const buyerUsdcAddress = await getAssociatedTokenAddress(usdcAddress, buyerPublicKey)
     // Get the shop's USDC token account address
-    const shopUsdcAddress = await getAssociatedTokenAddress(usdcAddress, shopPublicKey)
+    const shopUsdcAddress = await getAssociatedTokenAddress(usdcAddress, CANDY_MACHINE_OWNER)
 
     // Get a recent blockhash to include in the transaction
     const { blockhash } = await (connection.getLatestBlockhash('finalized'))
@@ -98,11 +235,10 @@ async function post(
     const transaction = new Transaction({
       recentBlockhash: blockhash,
       // The buyer pays the transaction fee
-      feePayer: buyerPublicKey,
+      feePayer: shopPublicKey,
     })
 
-    // If the buyer has the coupon discount, divide the amount in USDC by 2
-    const amountToPay = buyerGetsCouponDiscount ? amount.dividedBy(2) : amount
+    const amountToPay = amount
 
     // Create the instruction to send USDC from the buyer to the shop
     const transferInstruction = createTransferCheckedInstruction(
@@ -122,43 +258,21 @@ async function post(
       isWritable: false,
     })
 
-    // Create the instruction to send the coupon from the shop to the buyer
-    const couponInstruction = buyerGetsCouponDiscount ?
-      // The coupon instruction is to send 5 coupons from the buyer to the shop
-      createTransferCheckedInstruction(
-        buyerCouponAccount.address, // source account (coupons)
-        couponAddress, // token address (coupons)
-        shopCouponAddress, // destination account (coupons)
-        buyerPublicKey, // owner of source account
-        5, // amount to transfer
-        0, // decimals of the token - we know this is 0
-      ) :
-      // The coupon instruction is to send 1 coupon from the shop to the buyer
-      createTransferCheckedInstruction(
-        shopCouponAddress, // source account (coupon)
-        couponAddress, // token address (coupon)
-        buyerCouponAccount.address, // destination account (coupon)
-        shopPublicKey, // owner of source account
-        1, // amount to transfer
-        0, // decimals of the token - we know this is 0
-      )
+    const mint = Keypair.generate()
 
-    // Add the shop as a signer to the coupon instruction
-    // If the shop is sending a coupon, it already will be a signer
-    // But if the buyer is sending the coupons, the shop won't be a signer automatically
-    // It's useful security to have the shop sign the transaction
-    couponInstruction.keys.push({
-      pubkey: shopPublicKey,
-      isSigner: true,
-      isWritable: false,
-    })
+    // Create the mint setup instructions
+    const mintSetupInstructions = await createSetupInstructions(connection, shopPublicKey, buyerPublicKey, mint.publicKey)
 
-    // Add both instructions to the transaction
-    transaction.add(transferInstruction, couponInstruction)
+    // Create the mint NFT instruction
+    const mintNFTInstruction = await createMetaplexMintInstruction(shopPublicKey, buyerPublicKey, mint.publicKey)
 
-    // Sign the transaction as the shop, which is required to transfer the coupon
+    // Add all instructions to the transaction
+    transaction.add(transferInstruction, ...mintSetupInstructions, mintNFTInstruction)
+
+    // Sign the transaction as the mint, which is required for setup instructions
+    // Also sign as the shop, which is paying the NFT costs
     // We must partial sign because the transfer instruction still requires the user
-    transaction.partialSign(shopKeypair)
+    transaction.partialSign(mint, shopKeypair)
 
     // Serialize the transaction and convert to base64 to return it
     const serializedTransaction = transaction.serialize({
@@ -169,7 +283,7 @@ async function post(
 
     // Insert into database: reference, amount
 
-    const message = buyerGetsCouponDiscount ? "50% Discount! 🍪" : "Thanks for your order! 🍪"
+    const message = "Free dinosaur with all cookies! 🍪"
 
     // Return the serialized transaction
     res.status(200).json({

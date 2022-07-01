@@ -83,7 +83,7 @@ export default function Checkout() {
     return () => {
       clearInterval(interval)
     }
-  }, [])
+  }, [amount])
 
   return (
     <div className="flex flex-col items-center gap-8">
